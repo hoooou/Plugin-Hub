@@ -3338,5 +3338,51 @@
     "disabled": false,
     "install": false,
     "installed": false
+  },
+  {
+    "id": "plugin-openai-us-egress",
+    "name": "美国出口与测速配置",
+    "version": "v1.1.0",
+    "group": "Tools",
+    "description": "订阅更新时自动把美国节点改为纯美国proxyip池出口；一键生成/清除AI出口分组规则与测速分组分流规则（路由界面可见）；面板支持实测出口。",
+    "tags": ["分流", "OpenAI", "测速"],
+    "type": "Http",
+    "url": "https://raw.githubusercontent.com/hoooou/Plugin-Hub/main/plugins/Generic/plugin-openai-us-egress.js",
+    "path": "data/plugins/plugin-openai-us-egress.js",
+    "triggers": ["on::subscribe", "on::generate", "on::manual"],
+    "hasUI": false,
+    "menus": {},
+    "context": {
+      "profiles": {},
+      "subscriptions": {},
+      "rulesets": {},
+      "plugins": {},
+      "scheduledtasks": {}
+    },
+    "status": 0,
+    "configuration": []
+  },
+  {
+    "id": "plugin-batch-download-speed",
+    "name": "批量下载测速排序",
+    "version": "v1.3.1",
+    "group": "Tools",
+    "description": "先通过Clash API并发预检全部节点延迟，再按延迟升序对合格节点串行执行真实下载测速；测速期间自动同步切换测速专用组；支持国外出口检测、历史保存与一键使用结果。",
+    "tags": ["测速", "节点", "排序"],
+    "type": "Http",
+    "url": "https://raw.githubusercontent.com/hoooou/Plugin-Hub/main/plugins/Generic/plugin-batch-download-speed.js",
+    "path": "data/plugins/plugin-batch-download-speed.js",
+    "triggers": ["on::manual"],
+    "hasUI": false,
+    "menus": {},
+    "context": {
+      "profiles": {},
+      "subscriptions": {},
+      "rulesets": {},
+      "plugins": {},
+      "scheduledtasks": {}
+    },
+    "status": 0,
+    "configuration": []
   }
 ]
