@@ -3370,7 +3370,7 @@
     "description": "先通过Clash API并发预检全部节点延迟，再按延迟升序对合格节点串行执行真实下载测速；测速期间自动同步切换测速专用组；支持国外出口检测、历史保存与一键使用结果。",
     "tags": ["测速", "节点", "排序"],
     "type": "Http",
-    "url": "https://raw.githubusercontent.com/hoooou/Plugin-Hub/main/plugins/Generic/plugin-batch-download-speed.js",
+    "url": "https://raw.githubusercontent.com/hoooou/Plugin-Hub/add-plugins/plugins/Generic/plugin-batch-download-speed.js",
     "path": "data/plugins/plugin-batch-download-speed.js",
     "triggers": ["on::manual"],
     "hasUI": false,
