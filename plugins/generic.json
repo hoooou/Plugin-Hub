@@ -3347,7 +3347,7 @@
     "description": "订阅更新时自动把美国节点改为纯美国proxyip池出口；一键生成/清除AI出口分组规则与测速分组分流规则（路由界面可见）；面板支持实测出口。",
     "tags": ["分流", "OpenAI", "测速"],
     "type": "Http",
-    "url": "https://raw.githubusercontent.com/hoooou/Plugin-Hub/main/plugins/Generic/plugin-openai-us-egress.js",
+    "url": "https://raw.githubusercontent.com/hoooou/Plugin-Hub/add-plugins/plugins/Generic/plugin-openai-us-egress.js",
     "path": "data/plugins/plugin-openai-us-egress.js",
     "triggers": ["on::subscribe", "on::generate", "on::manual"],
     "hasUI": false,
