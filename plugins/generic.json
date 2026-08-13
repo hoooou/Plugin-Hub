@@ -3342,14 +3342,14 @@
   {
     "id": "plugin-openai-us-egress",
     "name": "美国出口与测速配置",
-    "version": "v1.1.0",
+    "version": "v1.2.0",
     "group": "Tools",
-    "description": "订阅更新时自动把美国节点改为纯美国proxyip池出口；一键生成/清除AI出口分组规则与测速分组分流规则（路由界面可见）；面板支持实测出口。",
+    "description": "手动按预设或自定义 ProxyIP 改写美国节点；一键生成/清除 AI 出口与测速分流配置；支持从测速相关分组选择节点并通过多接口实测出口。",
     "tags": ["分流", "OpenAI", "测速"],
     "type": "Http",
     "url": "https://raw.githubusercontent.com/hoooou/Plugin-Hub/add-plugins/plugins/Generic/plugin-openai-us-egress.js",
     "path": "data/plugins/plugin-openai-us-egress.js",
-    "triggers": ["on::subscribe", "on::generate", "on::manual"],
+    "triggers": ["on::manual"],
     "hasUI": false,
     "menus": {},
     "context": {
