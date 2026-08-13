@@ -230,11 +230,11 @@ const removeSpeedConfig = async () => {
   const speedGroups = (profile.outbounds || []).filter((o) => o && o.type === 'selector' && String(o.tag || '').includes('测速'))
   const speedGroupIds = new Set(speedGroups.map((g) => g.id))
 
-  /* 1. 删除测速分流规则：payload 含 datapacket 的规则，或 outbound 指向任何测速组的规则 */
+  /* 1. 删除测速分流规则：payload 含 datapacket 的 inline 规则，或 outbound 指向任何测速组的规则 */
   for (let i = rules.length - 1; i >= 0; i--) {
     const r = rules[i]
     if (!r) continue
-    const isSpeedRule = String(r.payload || '').includes('datapacket') || speedGroupIds.has(r.outbound)
+    const isSpeedRule = (r.type === 'inline' && String(r.payload || '').includes('datapacket')) || speedGroupIds.has(r.outbound)
     if (isSpeedRule) {
       rules.splice(i, 1)
       removed.push('测速分流规则')
