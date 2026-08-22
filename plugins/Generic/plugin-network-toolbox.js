@@ -44,7 +44,9 @@ const SITES = [
   ['YouTube', '国际', 'https://www.youtube.com/favicon.ico']
 ].map(([name, region, url]) => ({ name, region, url }))
 
-const OVERSEAS_SOURCES = [
+/* 测速/出口验证专用源：域名必须包含在 SPEED_DOMAINS 中（走 ⚡ 测速专用 分组），
+ * 这样切换测速组节点后才能测出目标节点自己的出口。 */
+const SPEED_EGRESS_SOURCES = [
   [
     'cmliussss API',
     'https://api.cmliussss.net/api/ipinfo',
@@ -75,6 +77,36 @@ const OVERSEAS_SOURCES = [
   ]
 ]
 
+/* 体检专用源：域名不得与 SPEED_DOMAINS 重叠，否则会被测速分流规则截走，
+ * 导致体检显示测速分组而非「🚀 节点选择」的出口。 */
+const HEALTH_OVERSEAS_SOURCES = [
+  [
+    'ipwho.is',
+    'https://ipwho.is/',
+    (body) => {
+      if (!body?.ip || body.success === false) throw new Error('返回格式异常')
+      const asn = body.connection?.asn ? ` AS${body.connection.asn}` : ''
+      return { ip: body.ip, place: `${body.country_code || ''}${asn} ${body.connection?.org || ''}`, country: body.country_code || '' }
+    }
+  ],
+  [
+    'freeipapi.com',
+    'https://freeipapi.com/api/json',
+    (body) => {
+      if (!body?.ipAddress) throw new Error('返回格式异常')
+      return { ip: body.ipAddress, place: body.countryCode || '', country: body.countryCode || '' }
+    }
+  ],
+  [
+    'ipify',
+    'https://api.ipify.org?format=json',
+    (body) => {
+      if (!body?.ip) throw new Error('返回格式异常')
+      return { ip: body.ip, place: '', country: '' }
+    }
+  ]
+]
+
 const PRESET_URLS = [
   { label: '🇭🇰 香港', value: 'http://hkg.download.datapacket.com/100mb.bin' },
   { label: '🇸🇬 新加坡', value: 'http://sgp.download.datapacket.com/100mb.bin' },
@@ -95,7 +127,7 @@ const GROUP_TAG = '🇺🇸 AI出口'
 const SPEED_GROUP_TAG = '⚡ 测速专用'
 const OPENCODE_GROUP_TAG = '🤖 OpenCode'
 const SPEED_RULESET_NAME = '下载测速分流'
-const SPEED_DOMAINS = ['datapacket.com', 'ipinfo.io', 'ipapi.co', 'cmliussss.net', 'api.ip.sb']
+const SPEED_DOMAINS = ['datapacket.com', 'ipinfo.io', 'ipapi.co', 'cmliussss.net', 'api.ip.sb'] /* 契约：HEALTH_OVERSEAS_SOURCES 的域名不得出现在这里 */
 const OPENCODE_DOMAINS = ['opencode.ai']
 const OPENAI_GEOSITE_URL = 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/openai.json'
 const ANTHROPIC_GEOSITE_URL = 'https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/anthropic.json'
@@ -239,7 +271,7 @@ const networkDomesticInfo = async (run) => {
 
 const networkOverseasInfo = async (run) => {
   let last
-  for (const [source, url, parse] of OVERSEAS_SOURCES) {
+  for (const [source, url, parse] of HEALTH_OVERSEAS_SOURCES) {
     if (run.cancelled) throw new Error('检测已取消')
     try {
       const response = await networkRequest(run, url)
@@ -469,7 +501,7 @@ const downloadForDuration = async ({ url, path, proxy, seconds, cancelId, onProg
 
 const overseasInfo = async ({ proxy, cancelIds, isStopped }) => {
   let last
-  for (const [source, url, parse] of OVERSEAS_SOURCES) {
+  for (const [source, url, parse] of SPEED_EGRESS_SOURCES) {
     if (isStopped()) throw new Error('检测已停止')
     const cancelId = `overseas-${Plugins.sampleID()}`
     cancelIds.add(cancelId)
@@ -799,6 +831,14 @@ const ensureFullConfig = async () => {
     created.push('🇺🇸 AI出口 分组')
   } else skipped.push('🇺🇸 AI出口 分组')
 
+  const globalGroup = profile.outbounds.find((o) => o && o.tag === 'GLOBAL')
+  if (globalGroup && Array.isArray(globalGroup.outbounds)) {
+    if (!globalGroup.outbounds.some((x) => x && x.tag === GROUP_TAG)) {
+      globalGroup.outbounds.push({ id: aiGroup.id, type: 'Built-in', tag: GROUP_TAG })
+      created.push('GLOBAL 组已加入 AI出口')
+    } else skipped.push('GLOBAL 已含 AI出口')
+  }
+
   let speedGroup = profile.outbounds.find((o) => o && o.tag === SPEED_GROUP_TAG)
   if (!speedGroup) {
     speedGroup = {
@@ -1109,6 +1149,13 @@ const removeConfigSection = async (kind) => {
   for (const g of groups) {
     profile.outbounds.splice(profile.outbounds.indexOf(g), 1)
     removed.push(`分组: ${g.tag}`)
+  }
+  const removedTags = new Set(groups.map((g) => g.tag))
+  for (const o of profile.outbounds || []) {
+    if (!o || !Array.isArray(o.outbounds)) continue
+    const before = o.outbounds.length
+    o.outbounds = o.outbounds.filter((x) => !(x && removedTags.has(x.tag)))
+    if (o.outbounds.length !== before) removed.push(`已清理 ${o.tag} 中的失效引用`)
   }
   const rs = Array.isArray(profile.route?.rule_set) ? profile.route.rule_set : []
   for (let i = rs.length - 1; i >= 0; i--) {
@@ -2113,8 +2160,8 @@ const onRun = async () => {
             <span class="flex items-center gap-4 text-gray-500"><Switch v-model="showUsOnly" :disabled="running" />只看美国</span>
           </div>
           <div class="overflow-auto" style="max-height: 34vh; margin-bottom: 8px">
-            <table class="w-full text-12"><thead><tr class="text-left text-gray-500" style="white-space: nowrap"><th class="p-4">节点</th><th class="p-4">延迟</th><th class="p-4">状态</th><th class="p-4">MB/s</th><th class="p-4">Mbps</th><th class="p-4">下载量</th><th class="p-4">有效时间</th><th class="p-4">错误原因</th><th class="p-4">国外出口</th><th class="p-4">操作</th></tr></thead>
-            <tbody><tr v-for="row in filteredResults" :key="row.key || row.name" class="border-t border-gray-200 dark:border-gray-700"><td class="p-4">{{ row.name }}</td><td class="p-4" :class="latencyClass(row.delay)" style="white-space: nowrap">{{ formatDelay(row.delay) }}</td><td class="p-4">{{ row.status }}</td><td class="p-4 text-right" style="white-space: nowrap">{{ row.mb }}</td><td class="p-4 text-right" style="white-space: nowrap">{{ row.mbps }}</td><td class="p-4" style="white-space: nowrap">{{ row.bytesText }}</td><td class="p-4" style="white-space: nowrap">{{ row.time }}</td><td class="p-4 text-red-500">{{ row.error || '—' }}</td><td class="p-4" :class="row.overseasCountry === 'US' ? 'text-green-500' : (row.overseasError ? 'text-red-500' : '')" :title="row.overseasError || ''">{{ overseasText(row) }}</td><td class="p-4"><Button size="small" type="primary" :disabled="running || egressRunning || row.status !== '成功'" @click="useResult(row)">使用</Button></td></tr></tbody></table>
+            <table class="w-full text-12"><thead><tr class="text-left text-gray-500" style="white-space: nowrap"><th class="p-4">节点</th><th class="p-4">延迟</th><th class="p-4">状态</th><th class="p-4">MB/s</th><th class="p-4">Mbps</th><th class="p-4">国外出口</th><th class="p-4">操作</th><th class="p-4">下载量</th><th class="p-4">有效时间</th><th class="p-4">错误原因</th></tr></thead>
+            <tbody><tr v-for="row in filteredResults" :key="row.key || row.name" class="border-t border-gray-200 dark:border-gray-700"><td class="p-4">{{ row.name }}</td><td class="p-4" :class="latencyClass(row.delay)" style="white-space: nowrap">{{ formatDelay(row.delay) }}</td><td class="p-4">{{ row.status }}</td><td class="p-4 text-right" style="white-space: nowrap">{{ row.mb }}</td><td class="p-4 text-right" style="white-space: nowrap">{{ row.mbps }}</td><td class="p-4" :class="row.overseasCountry === 'US' ? 'text-green-500' : (row.overseasError ? 'text-red-500' : '')" :title="row.overseasError || ''">{{ overseasText(row) }}</td><td class="p-4"><Button size="small" type="primary" :disabled="running || egressRunning || row.status !== '成功'" @click="useResult(row)">使用</Button></td><td class="p-4" style="white-space: nowrap">{{ row.bytesText }}</td><td class="p-4" style="white-space: nowrap">{{ row.time }}</td><td class="p-4 text-red-500">{{ row.error || '—' }}</td></tr></tbody></table>
             <div v-if="!results.length" class="py-24 text-center text-gray-500">选择策略组后开始测试</div>
             <div v-else-if="!filteredResults.length" class="py-24 text-center text-gray-500">没有美国出口的成功节点，取消「只看美国」或重新测速</div>
           </div>
@@ -2128,8 +2175,8 @@ const onRun = async () => {
             </div>
             <div v-if="!speedHistory" class="py-12 text-center text-gray-500">暂无历史记录</div>
             <div v-else class="overflow-auto" style="max-height: 22vh">
-              <table class="w-full text-12"><thead><tr class="text-left text-gray-500" style="white-space: nowrap"><th class="p-4">节点</th><th class="p-4">延迟</th><th class="p-4">状态</th><th class="p-4">MB/s</th><th class="p-4">Mbps</th><th class="p-4">下载量</th><th class="p-4">有效时间</th><th class="p-4">错误原因</th><th class="p-4">国外出口</th><th class="p-4">操作</th></tr></thead>
-              <tbody><tr v-for="row in filteredHistoryResults" :key="row.key || row.name" class="border-t border-gray-200 dark:border-gray-700"><td class="p-4">{{ row.name }}</td><td class="p-4" :class="latencyClass(row.delay)" style="white-space: nowrap">{{ formatDelay(row.delay) }}</td><td class="p-4">{{ row.status }}</td><td class="p-4 text-right" style="white-space: nowrap">{{ row.mb }}</td><td class="p-4 text-right" style="white-space: nowrap">{{ row.mbps }}</td><td class="p-4" style="white-space: nowrap">{{ row.bytesText }}</td><td class="p-4" style="white-space: nowrap">{{ row.time }}</td><td class="p-4 text-red-500">{{ row.error || '—' }}</td><td class="p-4" :class="row.overseasCountry === 'US' ? 'text-green-500' : (row.overseasError ? 'text-red-500' : '')" :title="row.overseasError || ''">{{ overseasText(row) }}</td><td class="p-4"><Button size="small" type="primary" :disabled="running || egressRunning || row.status !== '成功'" @click="useResult(row)">使用</Button></td></tr></tbody></table>
+              <table class="w-full text-12"><thead><tr class="text-left text-gray-500" style="white-space: nowrap"><th class="p-4">节点</th><th class="p-4">延迟</th><th class="p-4">状态</th><th class="p-4">MB/s</th><th class="p-4">Mbps</th><th class="p-4">国外出口</th><th class="p-4">操作</th><th class="p-4">下载量</th><th class="p-4">有效时间</th><th class="p-4">错误原因</th></tr></thead>
+              <tbody><tr v-for="row in filteredHistoryResults" :key="row.key || row.name" class="border-t border-gray-200 dark:border-gray-700"><td class="p-4">{{ row.name }}</td><td class="p-4" :class="latencyClass(row.delay)" style="white-space: nowrap">{{ formatDelay(row.delay) }}</td><td class="p-4">{{ row.status }}</td><td class="p-4 text-right" style="white-space: nowrap">{{ row.mb }}</td><td class="p-4 text-right" style="white-space: nowrap">{{ row.mbps }}</td><td class="p-4" :class="row.overseasCountry === 'US' ? 'text-green-500' : (row.overseasError ? 'text-red-500' : '')" :title="row.overseasError || ''">{{ overseasText(row) }}</td><td class="p-4"><Button size="small" type="primary" :disabled="running || egressRunning || row.status !== '成功'" @click="useResult(row)">使用</Button></td><td class="p-4" style="white-space: nowrap">{{ row.bytesText }}</td><td class="p-4" style="white-space: nowrap">{{ row.time }}</td><td class="p-4 text-red-500">{{ row.error || '—' }}</td></tr></tbody></table>
             </div>
           </div>
         </div>
